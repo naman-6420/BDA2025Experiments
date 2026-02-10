@@ -1,0 +1,22 @@
+name: bda2025-rpca-lid
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - scipy
+  - matplotlib
+  - librosa
+  - soundfile
+  - pydub
+  - tqdm
+  - pytorch
+  - torchaudio
+  - cpuonly
+  - ffmpeg
+  - pip:
+      # Optional: if you want notebook experimentation
+      - jupyterlab
