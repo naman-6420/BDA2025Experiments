@@ -7,8 +7,14 @@ This script is aligned with this repository's phoneme feature format:
 - In this repo, loaders commonly use np.load(path).T to get [T, 392].
 
 Usage examples:
+  # 1) Directly provide phoneme posterior feature matrix
   python rpca_language_change_wav2vec_phoneme.py --posterior-npy sample.npy --out-prefix runs/demo
-  python rpca_language_change_wav2vec_phoneme.py --posterior-npy sample.npy --win-sec 1.0 --hop-sec 0.5
+
+  # 2) Provide an audio path and a feature root; script resolves <stem>.npy
+  python rpca_language_change_wav2vec_phoneme.py --wav sample.wav --feature-root dataset/feature/seen_set_indicvoice
+
+  # 3) Provide both wav and explicit feature file for that wav
+  python rpca_language_change_wav2vec_phoneme.py --wav sample.wav --posterior-npy features/sample.npy
 """
 
 from __future__ import annotations
@@ -100,6 +106,34 @@ def load_repo_phoneme_posteriors(posterior_npy: Path) -> np.ndarray:
     return post_tn.astype(np.float64, copy=False)
 
 
+def resolve_feature_path(wav: Path | None, posterior_npy: Path | None, feature_root: Path | None) -> Path:
+    """
+    Resolve which .npy phoneme posterior file to load.
+
+    Priority:
+    1) --posterior-npy, if given.
+    2) --wav + --feature-root -> <feature_root>/<wav_stem>.npy
+    """
+    if posterior_npy is not None:
+        if not posterior_npy.exists():
+            raise FileNotFoundError(f"--posterior-npy not found: {posterior_npy}")
+        return posterior_npy
+
+    if wav is None:
+        raise ValueError("Provide either --posterior-npy OR --wav (with --feature-root).")
+
+    if feature_root is None:
+        raise ValueError("When using --wav without --posterior-npy, provide --feature-root.")
+
+    candidate = feature_root / f"{wav.stem}.npy"
+    if not candidate.exists():
+        raise FileNotFoundError(
+            f"Could not find phoneme feature for wav '{wav}'. Expected: {candidate}. "
+            "Either pass --posterior-npy directly or place the matching .npy in --feature-root."
+        )
+    return candidate
+
+
 def temporal_pooling(post_tn: np.ndarray, frame_hop_sec: float, win_sec: float, hop_sec: float) -> np.ndarray:
     """Pool frame-level posteriors [T, Nph] -> matrix D [Nph, W]."""
     t, nph = post_tn.shape
@@ -136,7 +170,14 @@ def detect_change_points(s: np.ndarray, med_kernel: int, k: float) -> tuple[np.n
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="RPCA language change detection on wav2vec2-phone posteriors")
-    parser.add_argument("--posterior-npy", type=Path, required=True, help="Path to phoneme posterior .npy")
+    parser.add_argument("--posterior-npy", type=Path, default=None, help="Path to phoneme posterior .npy")
+    parser.add_argument("--wav", type=Path, default=None, help="Audio file to analyze (used to resolve matching .npy)")
+    parser.add_argument(
+        "--feature-root",
+        type=Path,
+        default=None,
+        help="Directory containing phoneme features named <wav_stem>.npy (used with --wav)",
+    )
     parser.add_argument("--frame-hop-sec", type=float, default=0.02, help="Frame hop used in posterior extraction")
     parser.add_argument("--win-sec", type=float, default=1.0, help="Pooling window size in seconds")
     parser.add_argument("--hop-sec", type=float, default=0.5, help="Pooling hop size in seconds")
@@ -148,7 +189,12 @@ def main() -> None:
     parser.add_argument("--out-prefix", type=Path, default=Path("rpca_lang_change"), help="Output prefix")
     args = parser.parse_args()
 
-    post_tn = load_repo_phoneme_posteriors(args.posterior_npy)
+    feature_path = resolve_feature_path(args.wav, args.posterior_npy, args.feature_root)
+    if args.wav is not None:
+        print(f"Input audio: {args.wav}")
+    print(f"Using phoneme feature: {feature_path}")
+
+    post_tn = load_repo_phoneme_posteriors(feature_path)
     print(f"Loaded posteriors: shape={post_tn.shape} (T, Nph)")
 
     d = temporal_pooling(post_tn, args.frame_hop_sec, args.win_sec, args.hop_sec)
