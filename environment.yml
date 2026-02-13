@@ -10,7 +10,6 @@ dependencies:
   - scipy
   - matplotlib
   - librosa
-  - soundfile
   - pydub
   - tqdm
   - pytorch
@@ -18,5 +17,8 @@ dependencies:
   - cpuonly
   - ffmpeg
   - pip:
+      # Windows conda sometimes misses `soundfile`; install via pip for portability.
+      - soundfile
+      - transformers
       # Optional: if you want notebook experimentation
       - jupyterlab
