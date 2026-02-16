@@ -12,8 +12,8 @@ dependencies:
   - librosa
   - pydub
   - tqdm
-  - pytorch
-  - torchaudio
+  - pytorch=2.5.1
+  - torchaudio=2.5.1
   - cpuonly
   - ffmpeg
   - pip:
