@@ -25,7 +25,7 @@ from pathlib import Path
 import librosa
 import numpy as np
 import torch
-from transformers import AutoModelForCTC, AutoProcessor
+from transformers import AutoFeatureExtractor, AutoModelForCTC
 
 
 def load_audio_16k(path: Path, target_sr: int = 16000) -> np.ndarray:
@@ -105,6 +105,12 @@ def main() -> None:
         choices=["nph_t", "t_nph"],
         help="Output matrix layout: nph_t saves [Nph, T], t_nph saves [T, Nph]",
     )
+    p.add_argument(
+        "--use-safetensors",
+        action="store_true",
+        default=True,
+        help="Load HF checkpoints via safetensors when available (recommended with older torch).",
+    )
     args = p.parse_args()
 
     if args.stride_sec >= args.chunk_sec:
@@ -113,15 +119,20 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"Loading model: {args.model_id}")
-    processor = AutoProcessor.from_pretrained(args.model_id)
-    model = AutoModelForCTC.from_pretrained(args.model_id).to(device).eval()
+    # Use feature extractor (NOT full processor) to avoid tokenizer/phonemizer runtime deps
+    # such as espeak/protobuf for pure acoustic forward inference.
+    feature_extractor = AutoFeatureExtractor.from_pretrained(args.model_id)
+    model = AutoModelForCTC.from_pretrained(
+        args.model_id,
+        use_safetensors=args.use_safetensors,
+    ).to(device).eval()
 
     wav = load_audio_16k(args.wav, args.sr)
     print(f"Audio loaded: {args.wav} ({len(wav)/args.sr:.2f}s)")
 
     logits = batched_logits(
         model=model,
-        processor=processor,
+        processor=feature_extractor,
         wav=wav,
         sr=args.sr,
         chunk_sec=args.chunk_sec,
