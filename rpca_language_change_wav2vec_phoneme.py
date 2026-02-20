@@ -218,12 +218,14 @@ def main() -> None:
     np.save(f"{args.out_prefix}_energy.npy", energy)
     np.save(f"{args.out_prefix}_change_idx.npy", idx)
 
+    time_sec = np.arange(len(energy)) * args.hop_sec
+
     plt.figure(figsize=(10, 4))
-    plt.plot(energy, label="Sparse energy ||S(:,w)||")
+    plt.plot(time_sec, energy, label="Sparse energy ||S(:,w)||")
     plt.axhline(thr, linestyle="--", label=f"threshold (median + {args.k}*MAD)")
     for i in idx:
-        plt.axvline(i, linestyle=":", linewidth=1)
-    plt.xlabel("Window index")
+        plt.axvline(i * args.hop_sec, linestyle=":", linewidth=1)
+    plt.xlabel("Time (seconds)")
     plt.ylabel("Energy")
     plt.title("RPCA-based language change detection")
     plt.legend()
